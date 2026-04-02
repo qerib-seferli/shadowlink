@@ -1,7 +1,7 @@
 const SUPABASE_URL = "https://oewgxawfwjqsbfoxwlti.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ld2d4YXdmd2pxc2Jmb3h3bHRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNjQ0NDgsImV4cCI6MjA5MDc0MDQ0OH0.0g1OkKf4DEytyzL7Whzie0XJfdUOC7buUUT4Drilu70";
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const loginScreen = document.getElementById("loginScreen");
 const chatScreen = document.getElementById("chatScreen");
@@ -25,13 +25,17 @@ const editorBanner = document.getElementById("editorBanner");
 const editorTextPreview = document.getElementById("editorTextPreview");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 
+const USERS = {
+  "nara@shadowlink.com": { display_name: "NARA", avatar: "N" },
+  "ebiss@shadowlink.com": { display_name: "EBISS", avatar: "E" }
+};
+
 let currentUser = null;
 let currentProfile = null;
 let otherProfile = null;
 let activeChannel = null;
 let editingMessageId = null;
-
-const allowedEmails = ["nara@shadowlink.com", "ebiss@shadowlink.com"];
+let booting = false;
 
 loginForm.addEventListener("submit", handleLogin);
 messageForm.addEventListener("submit", handleMessageSubmit);
@@ -57,15 +61,23 @@ document.addEventListener("click", async (e) => {
 init();
 
 async function init() {
-  const { data } = await supabase.auth.getSession();
+  showLogin();
+
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error) {
+    console.error("SESSION ERROR:", error);
+    loginError.textContent = `Session xətası: ${error.message}`;
+    return;
+  }
+
   if (data.session?.user) {
     currentUser = data.session.user;
     await bootChat();
-  } else {
-    showLogin();
   }
 
-  supabase.auth.onAuthStateChange(async (_event, session) => {
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    console.log("AUTH EVENT:", event, session);
+
     if (session?.user) {
       currentUser = session.user;
       await bootChat();
@@ -73,6 +85,7 @@ async function init() {
       currentUser = null;
       currentProfile = null;
       otherProfile = null;
+      editingMessageId = null;
       stopRealtime();
       showLogin();
     }
@@ -84,9 +97,9 @@ async function handleLogin(e) {
   loginError.textContent = "";
 
   const email = emailInput.value.trim().toLowerCase();
-  const password = passwordInput.value.trim();
+  const password = passwordInput.value;
 
-  if (!allowedEmails.includes(email)) {
+  if (!USERS[email]) {
     loginError.textContent = "Bu istifadəçi bu sistem üçün icazəli deyil.";
     return;
   }
@@ -96,7 +109,7 @@ async function handleLogin(e) {
     return;
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
     email,
     password,
   });
@@ -105,65 +118,116 @@ async function handleLogin(e) {
   console.log("LOGIN ERROR:", error);
 
   if (error) {
-  console.error("LOGIN ERROR:", error);
-  loginError.textContent = `Giriş xətası: ${error.message}`;
-  return;
-}
+    loginError.textContent = `Giriş xətası: ${error.message}`;
+    return;
+  }
 
+  const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+  if (userError || !userData.user) {
+    loginError.textContent = `İstifadəçi oxunmadı: ${userError?.message || "unknown error"}`;
+    return;
+  }
+
+  currentUser = userData.user;
   emailInput.value = "";
   passwordInput.value = "";
+
+  await bootChat();
 }
 
 async function handleLogout() {
-  await supabase.auth.signOut();
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    alert(`Çıxış xətası: ${error.message}`);
+  }
 }
 
 async function bootChat() {
+  if (booting) return;
+  booting = true;
+  loginError.textContent = "";
+
   try {
+    if (!currentUser?.email) {
+      throw new Error("Aktiv istifadəçi tapılmadı.");
+    }
+
     await loadProfiles();
     await loadMessages();
     subscribeMessages();
     showChat();
   } catch (error) {
-  console.error("BOOT CHAT ERROR:", error);
-  loginError.textContent = `Chat yüklənmədi: ${error.message}`;
-  showLogin();
+    console.error("BOOT CHAT ERROR:", error);
+    loginError.textContent = `Chat yüklənmədi: ${error.message}`;
+    showLogin();
+  } finally {
+    booting = false;
   }
 }
 
 async function loadProfiles() {
-  const { data: profiles, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .order("created_at", { ascending: true });
+  const myEmail = (currentUser.email || "").toLowerCase();
 
-  if (error) throw error;
-
-  currentProfile = profiles.find((p) => p.id === currentUser.id);
-  otherProfile = profiles.find((p) => p.id !== currentUser.id);
-
-  if (!currentProfile || !otherProfile) {
-    throw new Error("Profiles tapılmadı.");
+  if (!USERS[myEmail]) {
+    throw new Error("Bu email sistem siyahısında yoxdur.");
   }
 
-  myName.textContent = currentProfile.display_name;
-  partnerName.textContent = otherProfile.display_name;
-  myAvatar.textContent = currentProfile.display_name.charAt(0);
-  partnerAvatar.textContent = otherProfile.display_name.charAt(0);
+  const otherEmail = Object.keys(USERS).find((email) => email !== myEmail);
+  if (!otherEmail) {
+    throw new Error("Qarşı tərəf tapılmadı.");
+  }
+
+  const { data: profiles, error } = await supabaseClient
+    .from("profiles")
+    .select("id, email, display_name, role, avatar_seed, created_at")
+    .in("email", [myEmail, otherEmail]);
+
+  if (error) {
+    throw new Error(`profiles oxunmadı: ${error.message}`);
+  }
+
+  if (!profiles || profiles.length < 2) {
+    throw new Error("profiles cədvəlində 2 istifadəçi tam tapılmadı.");
+  }
+
+  currentProfile = profiles.find((p) => (p.email || "").toLowerCase() === myEmail);
+  otherProfile = profiles.find((p) => (p.email || "").toLowerCase() === otherEmail);
+
+  if (!currentProfile) {
+    throw new Error("Öz profilin tapılmadı.");
+  }
+
+  if (!otherProfile) {
+    throw new Error("Qarşı tərəfin profili tapılmadı.");
+  }
+
+  const myMeta = USERS[myEmail];
+  const otherMeta = USERS[otherEmail];
+
+  myName.textContent = currentProfile.display_name || myMeta.display_name;
+  partnerName.textContent = otherProfile.display_name || otherMeta.display_name;
+  myAvatar.textContent = (currentProfile.display_name || myMeta.avatar || "U").charAt(0).toUpperCase();
+  partnerAvatar.textContent = (otherProfile.display_name || otherMeta.avatar || "U").charAt(0).toUpperCase();
   partnerStatus.textContent = "secure link target";
-  chatTitle.textContent = `${currentProfile.display_name} ↔ ${otherProfile.display_name}`;
+  chatTitle.textContent = `${myName.textContent} ↔ ${partnerName.textContent}`;
 }
 
 async function loadMessages() {
-  const { data, error } = await supabase
+  if (!currentProfile?.id || !otherProfile?.id) {
+    throw new Error("Mesajlar üçün profil id-ləri hazır deyil.");
+  }
+
+  const { data, error } = await supabaseClient
     .from("messages")
     .select("*")
     .or(
-      `and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherProfile.id}),and(sender_id.eq.${otherProfile.id},receiver_id.eq.${currentUser.id})`
+      `and(sender_id.eq.${currentProfile.id},receiver_id.eq.${otherProfile.id}),and(sender_id.eq.${otherProfile.id},receiver_id.eq.${currentProfile.id})`
     )
     .order("created_at", { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(`messages oxunmadı: ${error.message}`);
+  }
 
   renderMessages(data || []);
 }
@@ -171,8 +235,8 @@ async function loadMessages() {
 function subscribeMessages() {
   stopRealtime();
 
-  activeChannel = supabase
-    .channel("shadowlink-messages")
+  activeChannel = supabaseClient
+    .channel(`shadowlink-messages-${currentProfile.id}`)
     .on(
       "postgres_changes",
       {
@@ -181,15 +245,21 @@ function subscribeMessages() {
         table: "messages",
       },
       async () => {
-        await loadMessages();
+        try {
+          await loadMessages();
+        } catch (error) {
+          console.error("REALTIME LOAD ERROR:", error);
+        }
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log("REALTIME STATUS:", status);
+    });
 }
 
 function stopRealtime() {
   if (activeChannel) {
-    supabase.removeChannel(activeChannel);
+    supabaseClient.removeChannel(activeChannel);
     activeChannel = null;
   }
 }
@@ -198,10 +268,14 @@ async function handleMessageSubmit(e) {
   e.preventDefault();
   const text = messageInput.value.trim();
 
-  if (!text || !currentProfile || !otherProfile) return;
+  if (!text) return;
+  if (!currentProfile?.id || !otherProfile?.id) {
+    alert("Profil bağlantısı hazır deyil.");
+    return;
+  }
 
   if (editingMessageId) {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from("messages")
       .update({
         content: text,
@@ -209,10 +283,10 @@ async function handleMessageSubmit(e) {
         edited_at: new Date().toISOString(),
       })
       .eq("id", editingMessageId)
-      .eq("sender_id", currentUser.id);
+      .eq("sender_id", currentProfile.id);
 
     if (error) {
-      alert("Mesaj redaktə olunmadı.");
+      alert(`Mesaj redaktə olunmadı: ${error.message}`);
       return;
     }
 
@@ -222,15 +296,17 @@ async function handleMessageSubmit(e) {
     return;
   }
 
-  const { error } = await supabase.from("messages").insert({
-    sender_id: currentUser.id,
-    receiver_id: otherProfile.id,
-    message_type: "text",
-    content: text,
-  });
+  const { error } = await supabaseClient
+    .from("messages")
+    .insert({
+      sender_id: currentProfile.id,
+      receiver_id: otherProfile.id,
+      message_type: "text",
+      content: text,
+    });
 
   if (error) {
-    alert("Mesaj göndərilmədi.");
+    alert(`Mesaj göndərilmədi: ${error.message}`);
     return;
   }
 
@@ -250,7 +326,7 @@ function renderMessages(messages) {
 
   messagesEl.innerHTML = messages
     .map((msg) => {
-      const mine = msg.sender_id === currentUser.id;
+      const mine = msg.sender_id === currentProfile.id;
       const time = formatTime(msg.created_at);
       const editedLabel = msg.edited ? "redaktə edildi" : "";
       const safeText = escapeHtml(msg.content || "");
@@ -312,14 +388,14 @@ async function deleteMessage(id) {
   const ok = confirm("Bu mesaj silinsin?");
   if (!ok) return;
 
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("messages")
     .delete()
     .eq("id", id)
-    .eq("sender_id", currentUser.id);
+    .eq("sender_id", currentProfile.id);
 
   if (error) {
-    alert("Mesaj silinmədi.");
+    alert(`Mesaj silinmədi: ${error.message}`);
     return;
   }
 
