@@ -105,9 +105,10 @@ async function handleLogin(e) {
   console.log("LOGIN ERROR:", error);
 
   if (error) {
-    loginError.textContent = `Giriş xətası: ${error.message}`;
-    return;
-  }
+  console.error("LOGIN ERROR:", error);
+  loginError.textContent = `Giriş xətası: ${error.message}`;
+  return;
+}
 
   emailInput.value = "";
   passwordInput.value = "";
@@ -124,9 +125,9 @@ async function bootChat() {
     subscribeMessages();
     showChat();
   } catch (error) {
-    console.error(error);
-    loginError.textContent = "Sistem yüklənmədi. Supabase bağlantısını yoxla.";
-    showLogin();
+  console.error("BOOT CHAT ERROR:", error);
+  loginError.textContent = `Chat yüklənmədi: ${error.message}`;
+  showLogin();
   }
 }
 
