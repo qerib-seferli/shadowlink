@@ -84,23 +84,30 @@ async function handleLogin(e) {
   loginError.textContent = "";
 
   const email = emailInput.value.trim().toLowerCase();
-  const password = passwordInput.value;
+  const password = passwordInput.value.trim();
 
   if (!allowedEmails.includes(email)) {
     loginError.textContent = "Bu istifadəçi bu sistem üçün icazəli deyil.";
     return;
   }
 
-  const { error } = await supabase.auth.signInWithPassword({
+  if (!password) {
+    loginError.textContent = "Şifrə boş ola bilməz.";
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
+  console.log("LOGIN DATA:", data);
+  console.log("LOGIN ERROR:", error);
+
   if (error) {
-  console.error("LOGIN ERROR:", error);
-  loginError.textContent = `Giriş xətası: ${error.message}`;
-  return;
-}
+    loginError.textContent = `Giriş xətası: ${error.message}`;
+    return;
+  }
 
   emailInput.value = "";
   passwordInput.value = "";
