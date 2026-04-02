@@ -97,9 +97,10 @@ async function handleLogin(e) {
   });
 
   if (error) {
-    loginError.textContent = "Giriş alınmadı. Email və ya şifrəni yoxla.";
-    return;
-  }
+  console.error("LOGIN ERROR:", error);
+  loginError.textContent = `Giriş xətası: ${error.message}`;
+  return;
+}
 
   emailInput.value = "";
   passwordInput.value = "";
