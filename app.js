@@ -1,13 +1,7 @@
 const SUPABASE_URL = "https://oewgxawfwjqsbfoxwlti.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ld2d4YXdmd2pxc2Jmb3h3bHRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNjQ0NDgsImV4cCI6MjA5MDc0MDQ0OH0.0g1OkKf4DEytyzL7Whzie0XJfdUOC7buUUT4Drilu70";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ld2d4YXdmd2pxc2Jmb3h3bHRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNjQ0NDgsImV4cCI6MjA5MDc0MDQ0OH0.0g1OkKf4DEytyzL7Whzie0XJfdUOC7buUUT4Drilu70";
 
-// Fallback: əgər yuxarıdakı sətirdə problem olsa, aşağıdakı real key istifadə olunsun
-const SAFE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ld2d4YXdmd2pxc2Jmb3h3bHRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNjQ0NDgsImV4cCI6MjA5MDc0MDQ0OH0.0g1OkKf4DEytyzL7Whzie0XJfdUOC7buUUT4Drilu70";
-
-const supabaseClient = window.supabase.createClient(
-  SUPABASE_URL,
-  SAFE_ANON_KEY
-);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const loginScreen = document.getElementById("loginScreen");
 const chatScreen = document.getElementById("chatScreen");
@@ -34,18 +28,32 @@ const hudCompass = document.getElementById("hudCompass");
 const messagesEl = document.getElementById("messages");
 const messageForm = document.getElementById("messageForm");
 const messageInput = document.getElementById("messageInput");
+
 const editorBanner = document.getElementById("editorBanner");
 const editorTextPreview = document.getElementById("editorTextPreview");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 
+const replyBanner = document.getElementById("replyBanner");
+const replyAuthor = document.getElementById("replyAuthor");
+const replyTextPreview = document.getElementById("replyTextPreview");
+const cancelReplyBtn = document.getElementById("cancelReplyBtn");
+
+const toastContainer = document.getElementById("toastContainer");
+
+const confirmModal = document.getElementById("confirmModal");
+const confirmTitle = document.getElementById("confirmTitle");
+const confirmText = document.getElementById("confirmText");
+const confirmCancelBtn = document.getElementById("confirmCancelBtn");
+const confirmOkBtn = document.getElementById("confirmOkBtn");
+
 const USERS = {
   "nara@shadowlink.com": {
     display_name: "NARA",
-    avatarKey: "nara",
+    avatarPath: "foto/N-hack.png"
   },
   "ebiss@shadowlink.com": {
     display_name: "EBISS",
-    avatarKey: "ebiss",
+    avatarPath: "foto/E-hack.png"
   }
 };
 
@@ -54,21 +62,34 @@ let currentProfile = null;
 let otherProfile = null;
 let activeChannel = null;
 let editingMessageId = null;
+let replyToMessage = null;
 let booting = false;
+let audioContext = null;
 let lastKnownMessageIds = new Set();
 let hasLoadedMessagesOnce = false;
-let audioContext = null;
+let confirmResolver = null;
 
 loginForm.addEventListener("submit", handleLogin);
 messageForm.addEventListener("submit", handleMessageSubmit);
 logoutBtn.addEventListener("click", handleLogout);
 cancelEditBtn.addEventListener("click", cancelEditMode);
+cancelReplyBtn.addEventListener("click", cancelReplyMode);
+confirmCancelBtn.addEventListener("click", () => resolveConfirm(false));
+confirmOkBtn.addEventListener("click", () => resolveConfirm(true));
 
 document.addEventListener("click", async (e) => {
   initAudio();
 
   const editBtn = e.target.closest("[data-edit-id]");
   const deleteBtn = e.target.closest("[data-delete-id]");
+  const replyBtn = e.target.closest("[data-reply-id]");
+
+  if (replyBtn) {
+    const id = Number(replyBtn.dataset.replyId);
+    const text = replyBtn.dataset.text || "";
+    const author = replyBtn.dataset.author || "";
+    startReplyMode(id, text, author);
+  }
 
   if (editBtn) {
     const id = Number(editBtn.dataset.editId);
@@ -97,6 +118,8 @@ window.addEventListener("focus", async () => {
 });
 
 initHud();
+initMatrix();
+initGps();
 init();
 
 async function init() {
@@ -104,7 +127,6 @@ async function init() {
 
   const { data, error } = await supabaseClient.auth.getSession();
   if (error) {
-    console.error("SESSION ERROR:", error);
     loginError.textContent = `Session xətası: ${error.message}`;
     return;
   }
@@ -123,6 +145,7 @@ async function init() {
       currentProfile = null;
       otherProfile = null;
       editingMessageId = null;
+      replyToMessage = null;
       stopRealtime();
       resetPresence();
       showLogin();
@@ -135,7 +158,6 @@ function initHud() {
   updateHudCompass();
   setInterval(updateHudClock, 1000);
   setInterval(updateHudCompass, 2800);
-  hudGps.textContent = "40.37 / 47.12";
 }
 
 function updateHudClock() {
@@ -154,6 +176,89 @@ function updateHudCompass() {
   hudCompass.textContent = `${deg}° ${dir}`;
 }
 
+function initGps() {
+  if (!navigator.geolocation) {
+    hudGps.textContent = "GPS unsupported";
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const lat = position.coords.latitude.toFixed(4);
+      const lon = position.coords.longitude.toFixed(4);
+
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`, {
+          headers: {
+            "Accept": "application/json"
+          }
+        });
+        const data = await res.json();
+        const city =
+          data.address?.city ||
+          data.address?.town ||
+          data.address?.village ||
+          data.address?.state ||
+          `${lat}, ${lon}`;
+        hudGps.textContent = city;
+      } catch {
+        hudGps.textContent = `${lat}, ${lon}`;
+      }
+    },
+    () => {
+      hudGps.textContent = "Location denied";
+    },
+    {
+      enableHighAccuracy: false,
+      timeout: 7000,
+      maximumAge: 60000
+    }
+  );
+}
+
+function initMatrix() {
+  const canvas = document.getElementById("matrixCanvas");
+  const ctx = canvas.getContext("2d");
+
+  let width = 0;
+  let height = 0;
+  let fontSize = 18;
+  let columns = 0;
+  let drops = [];
+
+  const chars = "0101010011010010010110101010010110100101100101";
+
+  function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+    columns = Math.floor(width / fontSize);
+    drops = Array(columns).fill(1).map(() => Math.random() * -40);
+  }
+
+  function draw() {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = "#00ff66";
+    ctx.font = `${fontSize}px Share Tech Mono`;
+
+    for (let i = 0; i < drops.length; i++) {
+      const text = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+      if (drops[i] * fontSize > height && Math.random() > 0.975) {
+        drops[i] = 0;
+      }
+
+      drops[i]++;
+    }
+  }
+
+  resize();
+  setInterval(draw, 62);
+  window.addEventListener("resize", resize);
+}
+
 async function handleLogin(e) {
   e.preventDefault();
   initAudio();
@@ -164,11 +269,6 @@ async function handleLogin(e) {
 
   if (!USERS[email]) {
     loginError.textContent = "Bu istifadəçi bu sistem üçün icazəli deyil.";
-    return;
-  }
-
-  if (!password) {
-    loginError.textContent = "Şifrə boş ola bilməz.";
     return;
   }
 
@@ -197,7 +297,7 @@ async function handleLogin(e) {
 async function handleLogout() {
   const { error } = await supabaseClient.auth.signOut();
   if (error) {
-    alert(`Çıxış xətası: ${error.message}`);
+    showToast("Disconnect Error", error.message, "error");
   }
 }
 
@@ -212,6 +312,7 @@ async function bootChat() {
     }
 
     await loadProfiles();
+
     setAvatar(myAvatarCard, currentProfile.email);
     setAvatar(partnerAvatarCard, otherProfile.email);
 
@@ -221,10 +322,7 @@ async function bootChat() {
     await loadMessages(true);
     subscribeMessages();
     showChat();
-
-    setPresenceOnline(true);
   } catch (error) {
-    console.error("BOOT CHAT ERROR:", error);
     loginError.textContent = `Chat yüklənmədi: ${error.message}`;
     showLogin();
   } finally {
@@ -236,10 +334,6 @@ async function loadProfiles() {
   const myEmail = (currentUser.email || "").toLowerCase();
   const otherEmail = Object.keys(USERS).find((email) => email !== myEmail);
 
-  if (!USERS[myEmail]) {
-    throw new Error("Bu email sistem siyahısında yoxdur.");
-  }
-
   const { data: profiles, error } = await supabaseClient
     .from("profiles")
     .select("id, email, display_name, role, avatar_seed, created_at")
@@ -247,10 +341,6 @@ async function loadProfiles() {
 
   if (error) {
     throw new Error(`profiles oxunmadı: ${error.message}`);
-  }
-
-  if (!profiles || profiles.length < 2) {
-    throw new Error("profiles cədvəlində 2 istifadəçi tam tapılmadı.");
   }
 
   currentProfile = profiles.find((p) => (p.email || "").toLowerCase() === myEmail);
@@ -272,7 +362,7 @@ async function loadMessages(skipSound = false) {
 
   const { data, error } = await supabaseClient
     .from("messages")
-    .select("*")
+    .select("*, reply_to:reply_to_id(id, content, sender_id)")
     .or(
       `and(sender_id.eq.${currentProfile.id},receiver_id.eq.${otherProfile.id}),and(sender_id.eq.${otherProfile.id},receiver_id.eq.${currentProfile.id})`
     )
@@ -308,7 +398,7 @@ function subscribeMessages() {
   stopRealtime();
 
   activeChannel = supabaseClient
-    .channel(`shadowlink-main-${currentProfile.id}`, {
+    .channel("shadowlink-presence-room", {
       config: {
         presence: { key: currentProfile.id }
       }
@@ -330,9 +420,7 @@ function subscribeMessages() {
 
         try {
           await loadMessages(false);
-        } catch (error) {
-          console.error("REALTIME LOAD ERROR:", error);
-        }
+        } catch {}
       }
     )
     .subscribe(async (status) => {
@@ -356,7 +444,6 @@ function syncPresence() {
   const state = activeChannel.presenceState();
   const otherState = state[otherProfile.id];
   const isOnline = Array.isArray(otherState) && otherState.length > 0;
-
   setPresenceOnline(isOnline);
 }
 
@@ -393,11 +480,10 @@ async function handleMessageSubmit(e) {
   initAudio();
 
   const text = messageInput.value.trim();
-
   if (!text) return;
 
   if (!currentProfile?.id || !otherProfile?.id) {
-    alert("Profil bağlantısı hazır deyil.");
+    showToast("Node Error", "Profil bağlantısı hazır deyil.", "error");
     return;
   }
 
@@ -413,31 +499,36 @@ async function handleMessageSubmit(e) {
       .eq("sender_id", currentProfile.id);
 
     if (error) {
-      alert(`Mesaj redaktə olunmadı: ${error.message}`);
+      showToast("Edit Error", error.message, "error");
       return;
     }
 
+    showToast("Message Updated", "Mətn yeniləndi.", "ok");
     cancelEditMode();
     messageInput.value = "";
     await loadMessages(true);
     return;
   }
 
+  const insertPayload = {
+    sender_id: currentProfile.id,
+    receiver_id: otherProfile.id,
+    message_type: "text",
+    content: text,
+    reply_to_id: replyToMessage ? replyToMessage.id : null
+  };
+
   const { error } = await supabaseClient
     .from("messages")
-    .insert({
-      sender_id: currentProfile.id,
-      receiver_id: otherProfile.id,
-      message_type: "text",
-      content: text
-    });
+    .insert(insertPayload);
 
   if (error) {
-    alert(`Mesaj göndərilmədi: ${error.message}`);
+    showToast("Transmit Error", error.message, "error");
     return;
   }
 
   messageInput.value = "";
+  cancelReplyMode();
 }
 
 async function markMessagesAsRead(existingMessages = null) {
@@ -455,7 +546,7 @@ async function markMessagesAsRead(existingMessages = null) {
   });
 
   if (error) {
-    console.error("READ RPC ERROR:", error);
+    console.error(error);
   }
 }
 
@@ -477,6 +568,17 @@ function renderMessages(messages) {
       const editedLabel = msg.edited ? `<span>redaktə edildi</span>` : "";
       const safeText = escapeHtml(msg.content || "");
 
+      let replyHtml = "";
+      if (msg.reply_to) {
+        const replyAuthorName = msg.reply_to.sender_id === currentProfile.id ? myName.textContent : partnerName.textContent;
+        replyHtml = `
+          <div class="reply-preview">
+            <strong>${escapeHtml(replyAuthorName)}</strong>
+            <p>${escapeHtml(msg.reply_to.content || "")}</p>
+          </div>
+        `;
+      }
+
       let statusHtml = "";
       if (mine) {
         const isRead = !!msg.read_at;
@@ -488,36 +590,48 @@ function renderMessages(messages) {
         `;
       }
 
+      const author = mine ? myName.textContent : partnerName.textContent;
+
       return `
         <div class="message-row ${mine ? "mine" : ""}">
           <div class="message-bubble">
+            ${replyHtml}
             <div class="message-text">${safeText}</div>
             <div class="message-meta">
               <span>${time}</span>
               ${editedLabel}
               ${statusHtml}
             </div>
-            ${
-              mine
-                ? `
-                  <div class="message-actions">
+            <div class="message-actions">
+              <button
+                class="icon-btn"
+                data-reply-id="${msg.id}"
+                data-text="${escapeAttribute(msg.content || "")}"
+                data-author="${escapeAttribute(author)}"
+                title="Yanıtla"
+                type="button"
+              >↩</button>
+
+              ${
+                mine
+                  ? `
                     <button
-                      class="action-btn"
+                      class="icon-btn"
                       data-edit-id="${msg.id}"
                       data-text="${escapeAttribute(msg.content || "")}"
-                    >
-                      Redaktə et
-                    </button>
+                      title="Redaktə et"
+                      type="button"
+                    >✎</button>
                     <button
-                      class="action-btn delete"
+                      class="icon-btn delete"
                       data-delete-id="${msg.id}"
-                    >
-                      Sil
-                    </button>
-                  </div>
-                `
-                : ""
-            }
+                      title="Sil"
+                      type="button"
+                    >⌫</button>
+                  `
+                  : ""
+              }
+            </div>
           </div>
         </div>
       `;
@@ -525,6 +639,21 @@ function renderMessages(messages) {
     .join("");
 
   messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function startReplyMode(id, text, author) {
+  replyToMessage = { id, text, author };
+  replyAuthor.textContent = author;
+  replyTextPreview.textContent = text;
+  replyBanner.classList.remove("hidden");
+  messageInput.focus();
+}
+
+function cancelReplyMode() {
+  replyToMessage = null;
+  replyBanner.classList.add("hidden");
+  replyAuthor.textContent = "—";
+  replyTextPreview.textContent = "—";
 }
 
 function startEditMode(id, text) {
@@ -543,7 +672,10 @@ function cancelEditMode() {
 }
 
 async function deleteMessage(id) {
-  const ok = confirm("Bu mesaj silinsin?");
+  const ok = await showConfirm(
+    "Ebiss tərəfindən yetki yoxlaması",
+    "Bu mesaj sistemdən silinsin? Əməliyyat geri qaytarılmaya bilər."
+  );
   if (!ok) return;
 
   const { error } = await supabaseClient
@@ -553,7 +685,7 @@ async function deleteMessage(id) {
     .eq("sender_id", currentProfile.id);
 
   if (error) {
-    alert(`Mesaj silinmədi: ${error.message}`);
+    showToast("Delete Error", error.message, "error");
     return;
   }
 
@@ -561,6 +693,7 @@ async function deleteMessage(id) {
     cancelEditMode();
   }
 
+  showToast("Secure Delete", "Mesaj kanaldan çıxarıldı.", "ok");
   await loadMessages(true);
 }
 
@@ -580,6 +713,12 @@ function formatTime(dateStr) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function setAvatar(container, email) {
+  const key = (email || "").toLowerCase();
+  const path = USERS[key]?.avatarPath || "";
+  container.innerHTML = `<img src="${path}" alt="avatar" />`;
 }
 
 function initAudio() {
@@ -610,7 +749,7 @@ function playSoftTone(type = "send") {
   osc2.type = "triangle";
 
   if (type === "send") {
-    osc1.frequency.setValueAtTime(740, now);
+    osc1.frequency.setValueAtTime(760, now);
     osc2.frequency.setValueAtTime(920, now + 0.01);
   } else {
     osc1.frequency.setValueAtTime(520, now);
@@ -620,8 +759,8 @@ function playSoftTone(type = "send") {
   osc1.connect(gain);
   osc2.connect(gain);
 
-  gain.gain.exponentialRampToValueAtTime(0.022, now + 0.015);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.17);
+  gain.gain.exponentialRampToValueAtTime(0.02, now + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
 
   osc1.start(now);
   osc2.start(now + 0.01);
@@ -629,60 +768,40 @@ function playSoftTone(type = "send") {
   osc2.stop(now + 0.18);
 }
 
-function setAvatar(container, email) {
-  const key = (email || "").toLowerCase().includes("nara") ? "nara" : "ebiss";
-  const svg = key === "nara" ? getNaraAvatarSvg() : getEbissAvatarSvg();
-  container.innerHTML = `<img alt="${key} avatar" src="${svg}" />`;
+function showToast(title, text, type = "ok") {
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.innerHTML = `
+    <strong>${escapeHtml(title)}</strong>
+    <p>${escapeHtml(text)}</p>
+  `;
+  toastContainer.appendChild(toast);
+
+  if (type === "error") {
+    toast.style.borderColor = "rgba(255,67,108,0.28)";
+  }
+
+  setTimeout(() => {
+    toast.remove();
+  }, 3200);
 }
 
-function getNaraAvatarSvg() {
-  const svg = `
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs>
-      <linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#0b1715"/>
-        <stop offset="100%" stop-color="#10262a"/>
-      </linearGradient>
-      <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#49ff98"/>
-        <stop offset="100%" stop-color="#2ce6ff"/>
-      </linearGradient>
-    </defs>
-    <rect width="120" height="120" rx="22" fill="url(#bg1)"/>
-    <circle cx="60" cy="60" r="36" fill="none" stroke="rgba(73,255,152,0.22)" />
-    <path d="M24 94c8-26 18-44 36-52 18 8 28 26 36 52" fill="#091110" stroke="url(#g1)" stroke-width="2"/>
-    <path d="M39 55c6-18 16-28 21-28s15 10 21 28c-4 12-11 22-21 22s-17-10-21-22Z" fill="#0a1412" stroke="#49ff98" stroke-width="2"/>
-    <path d="M47 56h10" stroke="#2ce6ff" stroke-width="3" stroke-linecap="round"/>
-    <path d="M63 56h10" stroke="#2ce6ff" stroke-width="3" stroke-linecap="round"/>
-    <path d="M36 46c8-20 16-31 24-31 8 0 16 11 24 31" fill="none" stroke="#49ff98" stroke-width="2"/>
-    <path d="M49 71c5 4 17 4 22 0" stroke="#49ff98" stroke-width="2" fill="none" stroke-linecap="round"/>
-  </svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+function showConfirm(title, text) {
+  confirmTitle.textContent = title;
+  confirmText.textContent = text;
+  confirmModal.classList.remove("hidden");
+
+  return new Promise((resolve) => {
+    confirmResolver = resolve;
+  });
 }
 
-function getEbissAvatarSvg() {
-  const svg = `
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs>
-      <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#0a1013"/>
-        <stop offset="100%" stop-color="#0c1e25"/>
-      </linearGradient>
-      <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#2ce6ff"/>
-        <stop offset="100%" stop-color="#49ff98"/>
-      </linearGradient>
-    </defs>
-    <rect width="120" height="120" rx="22" fill="url(#bg2)"/>
-    <circle cx="60" cy="60" r="36" fill="none" stroke="rgba(44,230,255,0.22)" />
-    <path d="M22 96c10-24 22-40 38-46 16 6 28 22 38 46" fill="#0a1010" stroke="url(#g2)" stroke-width="2"/>
-    <path d="M41 50c5-17 12-27 19-29 7 2 14 12 19 29-3 14-10 24-19 24s-16-10-19-24Z" fill="#0a1415" stroke="#2ce6ff" stroke-width="2"/>
-    <path d="M46 53h10" stroke="#49ff98" stroke-width="3" stroke-linecap="round"/>
-    <path d="M64 53h10" stroke="#49ff98" stroke-width="3" stroke-linecap="round"/>
-    <path d="M40 36l20-12 20 12" fill="none" stroke="#2ce6ff" stroke-width="2"/>
-    <path d="M50 71h20" stroke="#2ce6ff" stroke-width="2" stroke-linecap="round"/>
-  </svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+function resolveConfirm(value) {
+  confirmModal.classList.add("hidden");
+  if (confirmResolver) {
+    confirmResolver(value);
+    confirmResolver = null;
+  }
 }
 
 function escapeHtml(str) {
