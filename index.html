@@ -3,189 +3,117 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SHADOWLINK // Secure Channel</title>
+  <title>SHADOWLINK // Channel</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body data-page="chat">
   <div class="bg-image"></div>
   <canvas id="matrixCanvas"></canvas>
   <div class="bg-grid"></div>
   <div class="bg-noise"></div>
   <div class="bg-scanline"></div>
-  <div class="bg-glow bg-glow-1"></div>
-  <div class="bg-glow bg-glow-2"></div>
 
-  <div id="app">
-    <section id="loginScreen" class="screen active">
-      <div class="login-wrap">
-        <div class="brand-box">
-          <div class="brand-top-line"></div>
-          <p class="system-label">SECURE COMMUNICATION NODE</p>
-          <h1>SHADOWLINK</h1>
-          <p class="brand-sub">
-            Private encrypted mobile channel for authorized users only.
-          </p>
-
-          <div class="brand-statuses">
-            <div class="status-chip">
-              <span class="dot"></span>
-              <span>Realtime relay active</span>
+  <div class="mobile-shell">
+    <header class="mobile-topbar terminal-card">
+      <div class="topbar-main">
+        <div class="title-cluster">
+          <p class="system-label">SECURE LINK ACTIVE</p>
+          <div class="title-row">
+            <h1 id="chatTitle">NARA ↔ EBISS</h1>
+            <div class="presence-wrap compact">
+              <span class="presence-dot offline" id="mobilePartnerDot"></span>
+              <span class="presence-text" id="mobilePartnerStatusText">offline</span>
             </div>
-            <div class="status-chip">
-              <span class="dot"></span>
-              <span>Matrix shield loaded</span>
-            </div>
+          </div>
+          <div class="subline-row">
+            <span class="subline-item" id="partnerRankLine">Admiral Administrator</span>
+            <span class="subline-item" id="partnerLastSeenLine">Last seen: --</span>
           </div>
         </div>
 
-        <div class="login-card terminal-card">
-          <div class="card-header">
-            <span class="header-led"></span>
-            <span>AUTHENTICATION PORTAL</span>
-          </div>
+        <button id="menuToggle" class="icon-btn top-menu-btn" type="button" title="Menu">
+          <span>☰</span>
+        </button>
+      </div>
 
-          <form id="loginForm" class="login-form">
-            <label>
-              <span>Email</span>
-              <input type="email" id="email" placeholder="nara@shadowlink.com" required />
-            </label>
-
-            <label>
-              <span>Şifrə</span>
-              <input type="password" id="password" placeholder="••••••••••••" required />
-            </label>
-
-            <button type="submit" class="primary-btn">Secure Login</button>
-            <p id="loginError" class="error-text"></p>
-          </form>
+      <div class="hud-strip mobile-hud">
+        <div class="hud-box">
+          <span class="hud-label">TIME</span>
+          <strong id="hudClock">--:--:--</strong>
+        </div>
+        <div class="hud-box">
+          <span class="hud-label">GPS</span>
+          <strong id="hudGps">Locating...</strong>
+        </div>
+        <div class="hud-box">
+          <span class="hud-label">SCAN</span>
+          <strong id="hudCompass">312° NW</strong>
         </div>
       </div>
-    </section>
+    </header>
 
-    <section id="chatScreen" class="screen">
-      <div class="chat-shell">
-        <aside class="sidebar terminal-card">
-          <div class="sidebar-top">
-            <p class="system-label">PRIVATE SECURE LINK</p>
-            <h2>SHADOWLINK</h2>
-            <div class="secure-badge">ENCRYPTED SESSION</div>
-          </div>
-
-          <div class="identity-row">
-            <div class="identity-card">
-              <div class="avatar-card" id="myAvatarCard"></div>
-              <div class="identity-meta">
-                <div class="identity-name-row">
-                  <span class="profile-name" id="myName">—</span>
-                  <span class="presence-wrap self">
-                    <span class="presence-dot online"></span>
-                    <span class="presence-text">online</span>
-                  </span>
-                </div>
-                <div class="profile-status">secure local node</div>
-              </div>
-            </div>
-
-            <div class="identity-card">
-              <div class="avatar-card partner" id="partnerAvatarCard"></div>
-              <div class="identity-meta">
-                <div class="identity-name-row">
-                  <span class="profile-name" id="partnerName">—</span>
-                  <span class="presence-wrap">
-                    <span class="presence-dot offline" id="partnerDot"></span>
-                    <span class="presence-text" id="partnerStatusText">offline</span>
-                  </span>
-                </div>
-                <div class="profile-status">remote secure node</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="sidebar-info">
-            <div class="info-line">
-              <span>Mode</span>
-              <strong>Dark Hacker</strong>
-            </div>
-            <div class="info-line">
-              <span>Presence</span>
-              <strong>Realtime</strong>
-            </div>
-            <div class="info-line">
-              <span>Reply</span>
-              <strong>Enabled</strong>
-            </div>
-          </div>
-
-          <button id="logoutBtn" class="danger-btn">Disconnect</button>
-        </aside>
-
-        <main class="chat-panel terminal-card">
-          <header class="chat-header">
-            <div class="chat-title-block">
-              <p class="system-label">SECURE LINK ACTIVE</p>
-              <div class="chat-title-row">
-                <h3 id="chatTitle">NARA ↔ EBISS</h3>
-                <span class="presence-wrap mobile-presence">
-                  <span class="presence-dot offline" id="mobilePartnerDot"></span>
-                  <span class="presence-text" id="mobilePartnerStatusText">offline</span>
-                </span>
-              </div>
-            </div>
-
-            <div class="hud-strip">
-              <div class="hud-box">
-                <span class="hud-label">TIME</span>
-                <strong id="hudClock">--:--:--</strong>
-              </div>
-              <div class="hud-box">
-                <span class="hud-label">GPS</span>
-                <strong id="hudGps">Locating...</strong>
-              </div>
-              <div class="hud-box">
-                <span class="hud-label">SCAN</span>
-                <strong id="hudCompass">312° NW</strong>
-              </div>
-            </div>
-          </header>
-
-          <div id="messages" class="messages"></div>
-
-          <div id="replyBanner" class="reply-banner hidden">
-            <div class="reply-banner-line"></div>
-            <div class="reply-banner-content">
-              <strong id="replyAuthor">—</strong>
-              <p id="replyTextPreview">—</p>
-            </div>
-            <button id="cancelReplyBtn" class="mini-btn" type="button">✕</button>
-          </div>
-
-          <div id="editorBanner" class="editor-banner hidden">
-            <div>
-              <strong>Mesaj redaktə olunur</strong>
-              <p id="editorTextPreview">—</p>
-            </div>
-            <button id="cancelEditBtn" class="mini-btn" type="button">✕</button>
-          </div>
-
-          <form id="messageForm" class="message-form">
-            <input
-              type="text"
-              id="messageInput"
-              placeholder="Mesaj yaz..."
-              autocomplete="off"
-              maxlength="5000"
-              required
-            />
-            <button type="submit" class="primary-btn send-btn">Transmit</button>
-          </form>
-        </main>
+    <aside id="sideMenu" class="side-menu terminal-card hidden">
+      <div class="card-header">
+        <span class="header-led"></span>
+        <span>SHADOWLINK MENU</span>
       </div>
-    </section>
+
+      <div class="menu-user-box">
+        <div class="avatar-card small" id="myAvatarCard"></div>
+        <div>
+          <div class="profile-name" id="myName">—</div>
+          <div class="profile-status">local secure node</div>
+        </div>
+      </div>
+
+      <nav class="menu-links">
+        <a href="index.html" class="menu-link active">Channel</a>
+        <a href="profile.html" class="menu-link">Profiles</a>
+        <a href="terminal.html" class="menu-link">Terminal</a>
+        <a href="location.html" class="menu-link">Location</a>
+        <a href="files.html" class="menu-link">Files</a>
+        <a href="notifications.html" class="menu-link">Notifications</a>
+        <a href="settings.html" class="menu-link">Settings</a>
+      </nav>
+
+      <button id="logoutBtn" class="danger-btn full-btn" type="button">Disconnect</button>
+    </aside>
+
+    <main class="chat-page">
+      <div id="messages" class="messages"></div>
+
+      <div id="replyBanner" class="reply-banner hidden">
+        <div class="reply-banner-line"></div>
+        <div class="reply-banner-content">
+          <strong id="replyAuthor">—</strong>
+          <p id="replyTextPreview">—</p>
+        </div>
+        <button id="cancelReplyBtn" class="mini-btn" type="button">✕</button>
+      </div>
+
+      <div id="editorBanner" class="editor-banner hidden">
+        <div>
+          <strong>Mesaj redaktə olunur</strong>
+          <p id="editorTextPreview">—</p>
+        </div>
+        <button id="cancelEditBtn" class="mini-btn" type="button">✕</button>
+      </div>
+
+      <form id="messageForm" class="message-form">
+        <input
+          type="text"
+          id="messageInput"
+          placeholder="Mesaj yaz..."
+          autocomplete="off"
+          maxlength="5000"
+          required
+        />
+        <button type="submit" class="primary-btn send-btn">Send</button>
+      </form>
+    </main>
   </div>
 
   <div id="toastContainer" class="toast-container"></div>
@@ -208,6 +136,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="fake-data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
