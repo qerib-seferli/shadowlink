@@ -11,18 +11,22 @@
 </head>
 <body>
   <div class="bg-grid"></div>
+  <div class="bg-noise"></div>
+  <div class="bg-scanline"></div>
   <div class="bg-glow bg-glow-1"></div>
   <div class="bg-glow bg-glow-2"></div>
+  <div class="hud-radar"></div>
 
   <div id="app">
-    <!-- LOGIN -->
     <section id="loginScreen" class="screen active">
       <div class="login-wrap">
         <div class="brand-box">
           <div class="brand-top-line"></div>
           <p class="system-label">SECURE COMMUNICATION NODE</p>
           <h1>SHADOWLINK</h1>
-          <p class="brand-sub">Encrypted private channel for authorized operators only.</p>
+          <p class="brand-sub">
+            Encrypted private communication link. Authorized users only.
+          </p>
 
           <div class="brand-statuses">
             <div class="status-chip">
@@ -31,7 +35,7 @@
             </div>
             <div class="status-chip">
               <span class="dot"></span>
-              <span>RLS shield active</span>
+              <span>Realtime channel armed</span>
             </div>
           </div>
         </div>
@@ -60,33 +64,46 @@
       </div>
     </section>
 
-    <!-- CHAT -->
     <section id="chatScreen" class="screen">
       <div class="chat-shell">
         <aside class="sidebar terminal-card">
           <div class="sidebar-top">
-            <p class="system-label">PRIVATE LINK</p>
+            <p class="system-label">PRIVATE SECURE LINK</p>
             <h2>SHADOWLINK</h2>
             <div class="secure-badge">ENCRYPTED SESSION</div>
           </div>
 
-          <div class="profile-box">
-            <div class="avatar" id="myAvatar">?</div>
-            <div>
-              <div class="profile-name" id="myName">—</div>
-              <div class="profile-status">secure node online</div>
+          <div class="identity-row">
+            <div class="identity-card">
+              <div class="avatar-card" id="myAvatarCard"></div>
+              <div class="identity-meta">
+                <div class="identity-name-row">
+                  <span class="profile-name" id="myName">—</span>
+                  <span class="presence-wrap self">
+                    <span class="presence-dot online"></span>
+                    <span class="presence-text">online</span>
+                  </span>
+                </div>
+                <div class="profile-status">secure local node</div>
+              </div>
+            </div>
+
+            <div class="identity-card">
+              <div class="avatar-card partner" id="partnerAvatarCard"></div>
+              <div class="identity-meta">
+                <div class="identity-name-row">
+                  <span class="profile-name" id="partnerName">—</span>
+                  <span class="presence-wrap" id="partnerPresenceWrap">
+                    <span class="presence-dot offline" id="partnerDot"></span>
+                    <span class="presence-text" id="partnerStatusText">offline</span>
+                  </span>
+                </div>
+                <div class="profile-status">remote secure node</div>
+              </div>
             </div>
           </div>
 
           <div class="divider"></div>
-
-          <div class="profile-box partner-box">
-            <div class="avatar partner" id="partnerAvatar">?</div>
-            <div>
-              <div class="profile-name" id="partnerName">—</div>
-              <div class="profile-status" id="partnerStatus">linked operator</div>
-            </div>
-          </div>
 
           <div class="sidebar-info">
             <div class="info-line">
@@ -94,12 +111,12 @@
               <strong>Dark Hacker</strong>
             </div>
             <div class="info-line">
-              <span>Channel</span>
-              <strong>2-User Private</strong>
+              <span>Sync</span>
+              <strong>Realtime Presence</strong>
             </div>
             <div class="info-line">
-              <span>Transport</span>
-              <strong>Realtime</strong>
+              <span>Theme</span>
+              <strong>Shadow UI</strong>
             </div>
           </div>
 
@@ -108,14 +125,29 @@
 
         <main class="chat-panel terminal-card">
           <header class="chat-header">
-            <div>
+            <div class="chat-title-block">
               <p class="system-label">SECURE LINK ACTIVE</p>
-              <h3 id="chatTitle">NARA ↔ EBISS</h3>
+              <div class="chat-title-row">
+                <h3 id="chatTitle">NARA ↔ EBISS</h3>
+                <span class="presence-wrap" id="mobilePartnerPresence">
+                  <span class="presence-dot offline" id="mobilePartnerDot"></span>
+                  <span class="presence-text" id="mobilePartnerStatusText">offline</span>
+                </span>
+              </div>
             </div>
-            <div class="header-right">
-              <div class="live-indicator">
-                <span class="pulse"></span>
-                <span>Live Sync</span>
+
+            <div class="hud-strip">
+              <div class="hud-box">
+                <span class="hud-label">TIME</span>
+                <strong id="hudClock">--:--:--</strong>
+              </div>
+              <div class="hud-box">
+                <span class="hud-label">GPS</span>
+                <strong id="hudGps">40.37 / 47.12</strong>
+              </div>
+              <div class="hud-box hud-radar-box">
+                <span class="hud-label">SCAN</span>
+                <strong id="hudCompass">312° NW</strong>
               </div>
             </div>
           </header>
