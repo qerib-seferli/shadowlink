@@ -20,7 +20,6 @@ let otherProfile = null;
 let activeChannel = null;
 let editingMessageId = null;
 let replyToMessage = null;
-let confirmResolver = null;
 let audioContext = null;
 let lastKnownMessageIds = new Set();
 let hasLoadedMessagesOnce = false;
@@ -143,11 +142,13 @@ function initGps(el) {
 
   navigator.geolocation.getCurrentPosition(
     async (position) => {
-      const lat = position.coords.latitude.toFixed(4);
-      const lon = position.coords.longitude.toFixed(4);
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      const latFixed = lat.toFixed(4);
+      const lonFixed = lon.toFixed(4);
 
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`, {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latFixed}&lon=${lonFixed}`, {
           headers: { "Accept": "application/json" }
         });
         const data = await res.json();
@@ -156,7 +157,7 @@ function initGps(el) {
           data.address?.town ||
           data.address?.village ||
           data.address?.state ||
-          `${lat}, ${lon}`;
+          `${latFixed}, ${lonFixed}`;
 
         el.textContent = city;
         localStorage.setItem("shadowlink_city", city);
@@ -164,11 +165,16 @@ function initGps(el) {
         if (currentProfile?.id) {
           await supabaseClient
             .from("profiles")
-            .update({ city_name: city, last_seen_at: new Date().toISOString() })
+            .update({
+              city_name: city,
+              latitude: lat,
+              longitude: lon,
+              last_seen_at: new Date().toISOString()
+            })
             .eq("id", currentProfile.id);
         }
       } catch {
-        el.textContent = `${lat}, ${lon}`;
+        el.textContent = `${latFixed}, ${lonFixed}`;
       }
     },
     () => {
@@ -261,10 +267,7 @@ async function initChatPage() {
     }
 
     if (deleteBtn) {
-      const ok = await showConfirm(
-        "Ebiss authorization layer",
-        "Bu mesaj sistemdən çıxarılsın? Əməliyyat geri qaytarılmaya bilər."
-      );
+      const ok = window.confirm("Bu mesaj sistemdən silinsin?");
       if (!ok) return;
 
       const { error } = await supabaseClient
@@ -273,12 +276,8 @@ async function initChatPage() {
         .eq("id", Number(deleteBtn.dataset.deleteId))
         .eq("sender_id", currentProfile.id);
 
-      if (error) {
-        showToast("Delete Error", error.message, "error");
-        return;
-      }
+      if (error) return;
 
-      showToast("Secure Delete", "Mesaj kanaldan çıxarıldı.");
       await loadMessages(messagesEl, true);
     }
   });
@@ -301,14 +300,10 @@ async function initChatPage() {
         .eq("id", editingMessageId)
         .eq("sender_id", currentProfile.id);
 
-      if (error) {
-        showToast("Edit Error", error.message, "error");
-        return;
-      }
+      if (error) return;
 
       editingMessageId = null;
       editorBanner.classList.add("hidden");
-      showToast("Message Updated", "Mesaj yeniləndi.");
       messageInput.value = "";
       await loadMessages(messagesEl, true);
       return;
@@ -324,10 +319,7 @@ async function initChatPage() {
         reply_to_id: replyToMessage ? replyToMessage.id : null
       });
 
-    if (error) {
-      showToast("Send Error", error.message, "error");
-      return;
-    }
+    if (error) return;
 
     messageInput.value = "";
     replyToMessage = null;
@@ -347,10 +339,7 @@ async function loadMessages(messagesEl, skipSound = false) {
     )
     .order("created_at", { ascending: true });
 
-  if (error) {
-    showToast("Load Error", error.message, "error");
-    return;
-  }
+  if (error) return;
 
   const messages = data || [];
 
@@ -367,7 +356,10 @@ async function loadMessages(messagesEl, skipSound = false) {
     ? messages.map((msg) => renderMessage(msg)).join("")
     : `<div class="terminal-card" style="padding:20px;text-align:center;color:var(--muted)">Secure channel hazırdır. İlk mesajı göndər.</div>`;
 
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+  requestAnimationFrame(() => {
+    messagesEl.scrollTop = messagesEl.scrollHeight + 300;
+  });
+
   lastKnownMessageIds = new Set(messages.map((x) => String(x.id)));
   hasLoadedMessagesOnce = true;
 
@@ -493,6 +485,7 @@ function subscribePresenceAndMessages(messagesEl, partnerStatusText, partnerDot,
 }
 
 async function markMessagesAsRead() {
+  if (!otherProfile?.id) return;
   const { error } = await supabaseClient.rpc("mark_conversation_read", {
     p_other_user: otherProfile.id
   });
@@ -571,8 +564,45 @@ async function initTerminalPage() {
 
 async function initLocationPage() {
   await loadProfiles();
+
   const cityEl = document.getElementById("locationCity");
+  const statusEl = document.getElementById("locationStatus");
+  const distanceEl = document.getElementById("locationDistance");
+
   cityEl.textContent = otherProfile.city_name || localStorage.getItem("shadowlink_city") || "Unknown";
+  statusEl.textContent = "tracking active";
+
+  if (
+    typeof currentProfile.latitude === "number" &&
+    typeof currentProfile.longitude === "number" &&
+    typeof otherProfile.latitude === "number" &&
+    typeof otherProfile.longitude === "number"
+  ) {
+    const km = haversineKm(
+      currentProfile.latitude,
+      currentProfile.longitude,
+      otherProfile.latitude,
+      otherProfile.longitude
+    );
+    distanceEl.textContent = `${km.toFixed(2)} km`;
+  } else {
+    distanceEl.textContent = "-- km";
+  }
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const toRad = (v) => (v * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 async function initFilesPage() {
@@ -739,47 +769,6 @@ function playSoftTone(type = "send") {
   osc2.start(now + 0.01);
   osc1.stop(now + 0.18);
   osc2.stop(now + 0.18);
-}
-
-function showToast(title, text, type = "ok") {
-  const box = document.getElementById("toastContainer");
-  if (!box) return;
-
-  const el = document.createElement("div");
-  el.className = "toast";
-  if (type === "error") el.style.borderColor = "rgba(255,64,107,0.28)";
-  el.innerHTML = `<strong>${escapeHtml(title)}</strong><p>${escapeHtml(text)}</p>`;
-  box.appendChild(el);
-  setTimeout(() => el.remove(), 3200);
-}
-
-function showConfirm(title, text) {
-  const modal = document.getElementById("confirmModal");
-  const titleEl = document.getElementById("confirmTitle");
-  const textEl = document.getElementById("confirmText");
-  const cancelBtn = document.getElementById("confirmCancelBtn");
-  const okBtn = document.getElementById("confirmOkBtn");
-
-  titleEl.textContent = title;
-  textEl.textContent = text;
-  modal.classList.remove("hidden");
-
-  return new Promise((resolve) => {
-    confirmResolver = resolve;
-
-    const close = (value) => {
-      modal.classList.add("hidden");
-      cancelBtn.removeEventListener("click", onCancel);
-      okBtn.removeEventListener("click", onOk);
-      resolve(value);
-    };
-
-    const onCancel = () => close(false);
-    const onOk = () => close(true);
-
-    cancelBtn.addEventListener("click", onCancel);
-    okBtn.addEventListener("click", onOk);
-  });
 }
 
 function formatTime(dateStr) {
