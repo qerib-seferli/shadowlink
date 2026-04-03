@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SHADOWLINK // Location</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="location">
+  <div class="bg-image"></div>
+  <canvas id="matrixCanvas"></canvas>
+  <div class="bg-grid"></div>
+  <div class="bg-noise"></div>
+  <div class="bg-scanline"></div>
+
+  <div class="page-shell">
+    <header class="page-topbar terminal-card">
+      <div>
+        <p class="system-label">TRACKING MODULE</p>
+        <h1>Location</h1>
+      </div>
+      <a href="index.html" class="mini-btn text-link">← Channel</a>
+    </header>
+
+    <section class="location-card terminal-card">
+      <div class="card-header">
+        <span class="header-led"></span>
+        <span>LIVE MAP PULSE</span>
+      </div>
+
+      <div class="map-box">
+        <div class="map-grid"></div>
+        <div class="map-pulse">
+          <span class="pulse-ring ring-1"></span>
+          <span class="pulse-ring ring-2"></span>
+          <span class="pulse-core"></span>
+        </div>
+      </div>
+
+      <div class="location-info">
+        <div class="info-line"><span>Target City</span><strong id="locationCity">Unknown</strong></div>
+        <div class="info-line"><span>Link Status</span><strong id="locationStatus">tracking active</strong></div>
+        <div class="info-line"><span>Route</span><strong>secure tunnel active</strong></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="fake-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
