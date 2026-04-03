@@ -50,6 +50,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (page === "files") initFilesPage();
   if (page === "notifications") initNotificationsPage();
   if (page === "settings") initSettingsPage();
+  if (page === "academy") initAcademyPage();
 });
 
 function initLoginPage() {
@@ -278,7 +279,7 @@ async function initChatPage() {
       }
 
       showToast("Secure Delete", "Mesaj kanaldan çıxarıldı.");
-      await loadMessages(messagesEl);
+      await loadMessages(messagesEl, true);
     }
   });
 
@@ -603,6 +604,55 @@ async function initNotificationsPage() {
 }
 
 async function initSettingsPage() {}
+
+async function initAcademyPage() {
+  const membersBox = document.getElementById("academyMembers");
+  const feedBox = document.getElementById("academyFeed");
+
+  const members = window.SHADOWLINK_FAKE?.academyMembers || [];
+  const feed = window.SHADOWLINK_FAKE?.academyFeed || [];
+
+  if (membersBox) {
+    membersBox.innerHTML = members.map((m) => `
+      <div class="academy-member-item ${m.stars >= 5 ? "command-member" : ""}">
+        <div class="trainee-avatar">
+          <img src="${m.img}" alt="${escapeAttribute(m.name)}">
+        </div>
+        <div class="trainee-meta">
+          <strong>${m.name}</strong>
+          <p>${m.role}</p>
+          <div class="academy-member-meta">
+            <span class="academy-badge">${m.badge}</span>
+            <span class="star-row">${"★".repeat(m.stars)}</span>
+          </div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  if (feedBox) {
+    feedBox.innerHTML = feed.map((item) => `
+      <div class="academy-post ${item.type === "answer" ? "academy-answer" : "academy-question"}">
+        <div class="academy-post-avatar">
+          <img src="${item.img}" alt="${escapeAttribute(item.author)}">
+        </div>
+        <div class="academy-post-body">
+          <div class="academy-post-top">
+            <div>
+              <strong>${item.author}</strong>
+              <span class="academy-post-role">${item.role}</span>
+            </div>
+            <div class="academy-post-side">
+              <span class="academy-post-time">${item.time}</span>
+              <span class="academy-post-stars">${"★".repeat(item.stars)}</span>
+            </div>
+          </div>
+          <div class="academy-post-text">${escapeHtml(item.text)}</div>
+        </div>
+      </div>
+    `).join("");
+  }
+}
 
 function setAvatar(el, email) {
   const avatar = USERS[(email || "").toLowerCase()]?.avatarPath || "";
