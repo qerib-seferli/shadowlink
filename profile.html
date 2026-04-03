@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SHADOWLINK // Profiles</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="profile">
+  <div class="bg-image"></div>
+  <canvas id="matrixCanvas"></canvas>
+  <div class="bg-grid"></div>
+  <div class="bg-noise"></div>
+  <div class="bg-scanline"></div>
+
+  <div class="page-shell">
+    <header class="page-topbar terminal-card">
+      <div>
+        <p class="system-label">IDENTITY MODULE</p>
+        <h1>Profiles</h1>
+      </div>
+      <a href="index.html" class="mini-btn text-link">← Channel</a>
+    </header>
+
+    <section class="profile-grid">
+      <article class="profile-card terminal-card" id="myProfileCard"></article>
+      <article class="profile-card terminal-card" id="otherProfileCard"></article>
+    </section>
+
+    <section class="fake-section terminal-card">
+      <div class="card-header">
+        <span class="header-led"></span>
+        <span>ACADEMY NETWORK</span>
+      </div>
+      <div id="fakeTrainees" class="fake-trainees"></div>
+      <div class="academy-note">Only ranked operators can write in the academy channels. Ebiss leads advanced cyber doctrine and operational guidance.</div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="fake-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
