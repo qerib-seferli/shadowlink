@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SHADOWLINK // Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="login">
+  <div class="bg-image"></div>
+  <canvas id="matrixCanvas"></canvas>
+  <div class="bg-grid"></div>
+  <div class="bg-noise"></div>
+  <div class="bg-scanline"></div>
+
+  <section class="screen active">
+    <div class="login-wrap">
+      <div class="brand-box">
+        <div class="brand-top-line"></div>
+        <p class="system-label">MOBILE SECURE NODE</p>
+        <h1>SHADOWLINK</h1>
+        <p class="brand-sub">
+          Encrypted tactical communication environment. Authorized personnel only.
+        </p>
+
+        <div class="brand-statuses">
+          <div class="status-chip"><span class="dot"></span><span>Secure relay ready</span></div>
+          <div class="status-chip"><span class="dot"></span><span>Mobile matrix loaded</span></div>
+        </div>
+      </div>
+
+      <div class="login-card terminal-card">
+        <div class="card-header">
+          <span class="header-led"></span>
+          <span>AUTHENTICATION PORTAL</span>
+        </div>
+
+        <form id="loginForm" class="login-form">
+          <label>
+            <span>Email</span>
+            <input type="email" id="email" placeholder="nara@shadowlink.com" required />
+          </label>
+
+          <label>
+            <span>Şifrə</span>
+            <input type="password" id="password" placeholder="••••••••••••" required />
+          </label>
+
+          <button type="submit" class="primary-btn">Secure Login</button>
+          <p id="loginError" class="error-text"></p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="fake-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
