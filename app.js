@@ -6,11 +6,13 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 const USERS = {
   "nara@shadowlink.com": {
     display_name: "NARA",
-    avatarPath: "foto/N-hack.png"
+    avatarPath: "foto/N-hack.png",
+    codename: "SILENT NARA"
   },
   "ebiss@shadowlink.com": {
     display_name: "EBISS",
-    avatarPath: "foto/E-hack.png"
+    avatarPath: "foto/E-hack.png",
+    codename: "BLACK ADMIRAL"
   }
 };
 
@@ -23,6 +25,7 @@ let replyToMessage = null;
 let audioContext = null;
 let lastKnownMessageIds = new Set();
 let hasLoadedMessagesOnce = false;
+let confirmResolver = null;
 
 const page = document.body.dataset.page;
 
@@ -189,16 +192,22 @@ async function initChatPage() {
   initCommonHud();
 
   const myName = document.getElementById("myName");
+  const myRoleLine = document.getElementById("myRoleLine");
+  const myCodeLine = document.getElementById("myCodeLine");
   const chatTitle = document.getElementById("chatTitle");
   const partnerRankLine = document.getElementById("partnerRankLine");
+  const partnerCodeLine = document.getElementById("partnerCodeLine");
   const partnerLastSeenLine = document.getElementById("partnerLastSeenLine");
   const myAvatarCard = document.getElementById("myAvatarCard");
   const messagesEl = document.getElementById("messages");
   const messageForm = document.getElementById("messageForm");
   const messageInput = document.getElementById("messageInput");
   const logoutBtn = document.getElementById("logoutBtn");
+  const purgeChatBtn = document.getElementById("purgeChatBtn");
   const menuToggle = document.getElementById("menuToggle");
   const sideMenu = document.getElementById("sideMenu");
+  const menuOverlay = document.getElementById("menuOverlay");
+  const menuCloseBtn = document.getElementById("menuCloseBtn");
   const editorBanner = document.getElementById("editorBanner");
   const editorTextPreview = document.getElementById("editorTextPreview");
   const cancelEditBtn = document.getElementById("cancelEditBtn");
@@ -209,20 +218,75 @@ async function initChatPage() {
 
   const partnerStatusText = document.getElementById("mobilePartnerStatusText");
   const partnerDot = document.getElementById("mobilePartnerDot");
+  const floatingPartnerDot = document.getElementById("floatingPartnerDot");
 
   myName.textContent = currentProfile.display_name;
+  myRoleLine.textContent = currentProfile.rank_title || "Operator";
+  myCodeLine.textContent = `Codename: ${USERS[(currentProfile.email || "").toLowerCase()]?.codename || "--"}`;
+
   chatTitle.textContent = `${currentProfile.display_name} ↔ ${otherProfile.display_name}`;
-  partnerRankLine.textContent = `${otherProfile.rank_title || "Operator"} ${buildStars(otherProfile.stars || 1)}`;
+  partnerRankLine.textContent = `${otherProfile.rank_title || "Operator"} ${buildStars(otherProfile.stars || 0)}`;
+  partnerCodeLine.textContent = `Codename: ${USERS[(otherProfile.email || "").toLowerCase()]?.codename || "--"}`;
   partnerLastSeenLine.textContent = `Last seen: ${formatDateTime(otherProfile.last_seen_at)}`;
   setAvatar(myAvatarCard, currentProfile.email);
 
-  menuToggle?.addEventListener("click", () => {
-    sideMenu.classList.toggle("hidden");
-  });
+  function closeMenu() {
+    sideMenu.classList.add("hidden");
+    menuOverlay.classList.add("hidden");
+  }
+
+  function openMenu() {
+    sideMenu.classList.remove("hidden");
+    menuOverlay.classList.remove("hidden");
+  }
+
+  menuToggle?.addEventListener("click", openMenu);
+  menuOverlay?.addEventListener("click", closeMenu);
+  menuCloseBtn?.addEventListener("click", closeMenu);
 
   logoutBtn?.addEventListener("click", async () => {
+    const ok = await showConfirm(
+      "Secure disconnect",
+      "Sessiyadan çıxılsın və kanal bağlansın?"
+    );
+    if (!ok) return;
+
     await supabaseClient.auth.signOut();
     window.location.href = "login.html";
+  });
+
+  purgeChatBtn?.addEventListener("click", async () => {
+    const ok1 = await showConfirm(
+      "Ebiss authorization required",
+      "Bütün mesajlar tam silinsin? Bu əməliyyat bütün kanal tarixçəsinə təsir edəcək."
+    );
+    if (!ok1) return;
+
+    const ok2 = await showConfirm(
+      "Final purge confirmation",
+      "Məlumatlar geri qaytarılmayacaq. Secure purge icra olunsun?"
+    );
+    if (!ok2) return;
+
+    const { error } = await supabaseClient
+      .from("messages")
+      .delete()
+      .or(
+        `and(sender_id.eq.${currentProfile.id},receiver_id.eq.${otherProfile.id}),and(sender_id.eq.${otherProfile.id},receiver_id.eq.${currentProfile.id})`
+      );
+
+    if (error) {
+      showToast("Purge Error", error.message, "error");
+      return;
+    }
+
+    replyToMessage = null;
+    editingMessageId = null;
+    replyBanner.classList.add("hidden");
+    editorBanner.classList.add("hidden");
+    showToast("Secure Purge", "Bütün kanal mesajları silindi.");
+    await loadMessages(messagesEl, true);
+    closeMenu();
   });
 
   cancelEditBtn?.addEventListener("click", () => {
@@ -267,7 +331,10 @@ async function initChatPage() {
     }
 
     if (deleteBtn) {
-      const ok = window.confirm("Bu mesaj sistemdən silinsin?");
+      const ok = await showConfirm(
+        "Secure Delete Request",
+        "Bu mesaj kanaldan silinsin?"
+      );
       if (!ok) return;
 
       const { error } = await supabaseClient
@@ -276,8 +343,12 @@ async function initChatPage() {
         .eq("id", Number(deleteBtn.dataset.deleteId))
         .eq("sender_id", currentProfile.id);
 
-      if (error) return;
+      if (error) {
+        showToast("Delete Error", error.message, "error");
+        return;
+      }
 
+      showToast("Secure Delete", "Mesaj kanaldan çıxarıldı.");
       await loadMessages(messagesEl, true);
     }
   });
@@ -300,10 +371,14 @@ async function initChatPage() {
         .eq("id", editingMessageId)
         .eq("sender_id", currentProfile.id);
 
-      if (error) return;
+      if (error) {
+        showToast("Edit Error", error.message, "error");
+        return;
+      }
 
       editingMessageId = null;
       editorBanner.classList.add("hidden");
+      showToast("Message Updated", "Mesaj yeniləndi.");
       messageInput.value = "";
       await loadMessages(messagesEl, true);
       return;
@@ -319,7 +394,10 @@ async function initChatPage() {
         reply_to_id: replyToMessage ? replyToMessage.id : null
       });
 
-    if (error) return;
+    if (error) {
+      showToast("Send Error", error.message, "error");
+      return;
+    }
 
     messageInput.value = "";
     replyToMessage = null;
@@ -327,7 +405,13 @@ async function initChatPage() {
   });
 
   await loadMessages(messagesEl, true);
-  subscribePresenceAndMessages(messagesEl, partnerStatusText, partnerDot, partnerLastSeenLine);
+  subscribePresenceAndMessages(
+    messagesEl,
+    partnerStatusText,
+    partnerDot,
+    floatingPartnerDot,
+    partnerLastSeenLine
+  );
 }
 
 async function loadMessages(messagesEl, skipSound = false) {
@@ -339,7 +423,10 @@ async function loadMessages(messagesEl, skipSound = false) {
     )
     .order("created_at", { ascending: true });
 
-  if (error) return;
+  if (error) {
+    showToast("Load Error", error.message, "error");
+    return;
+  }
 
   const messages = data || [];
 
@@ -356,9 +443,9 @@ async function loadMessages(messagesEl, skipSound = false) {
     ? messages.map((msg) => renderMessage(msg)).join("")
     : `<div class="terminal-card" style="padding:20px;text-align:center;color:var(--muted)">Secure channel hazırdır. İlk mesajı göndər.</div>`;
 
-  requestAnimationFrame(() => {
-    messagesEl.scrollTop = messagesEl.scrollHeight + 300;
-  });
+  setTimeout(() => {
+    messagesEl.scrollTop = messagesEl.scrollHeight + 400;
+  }, 30);
 
   lastKnownMessageIds = new Set(messages.map((x) => String(x.id)));
   hasLoadedMessagesOnce = true;
@@ -432,7 +519,7 @@ function renderMessage(msg) {
   `;
 }
 
-function subscribePresenceAndMessages(messagesEl, partnerStatusText, partnerDot, partnerLastSeenLine) {
+function subscribePresenceAndMessages(messagesEl, partnerStatusText, partnerDot, floatingPartnerDot, partnerLastSeenLine) {
   if (activeChannel) {
     try { supabaseClient.removeChannel(activeChannel); } catch {}
   }
@@ -445,8 +532,11 @@ function subscribePresenceAndMessages(messagesEl, partnerStatusText, partnerDot,
       const isOnline = Array.isArray(other) && other.length > 0;
 
       partnerStatusText.textContent = isOnline ? "online" : "offline";
-      partnerDot.classList.remove("online", "offline");
-      partnerDot.classList.add(isOnline ? "online" : "offline");
+      [partnerDot, floatingPartnerDot].forEach((dot) => {
+        if (!dot) return;
+        dot.classList.remove("online", "offline");
+        dot.classList.add(isOnline ? "online" : "offline");
+      });
 
       if (!isOnline) {
         partnerLastSeenLine.textContent = `Last seen: ${formatDateTime(otherProfile.last_seen_at)}`;
@@ -520,6 +610,8 @@ function renderProfileCard(profile, mine) {
   const city = profile.city_name || localStorage.getItem("shadowlink_city") || "Unknown";
   const title = profile.nickname || profile.display_name;
   const avatar = USERS[(profile.email || "").toLowerCase()]?.avatarPath || "";
+  const codename = USERS[(profile.email || "").toLowerCase()]?.codename || "--";
+  const starCount = (profile.email || "").toLowerCase().includes("nara") ? 0 : (profile.stars || 0);
 
   return `
     <div class="profile-card-main">
@@ -527,7 +619,8 @@ function renderProfileCard(profile, mine) {
       <div>
         <div class="profile-name">${title}</div>
         <div class="profile-role">${profile.rank_title || "Operator"}</div>
-        <div class="star-row">${buildStars(profile.stars || 1, true)}</div>
+        <div class="profile-role">Codename: ${codename}</div>
+        <div class="star-row">${buildStars(starCount, true)}</div>
       </div>
     </div>
 
@@ -543,7 +636,8 @@ function renderProfileCard(profile, mine) {
 }
 
 function buildStars(count, html = false) {
-  const stars = "★".repeat(count);
+  const safe = Math.max(0, count || 0);
+  const stars = "★".repeat(safe);
   return html ? stars : `[${stars}]`;
 }
 
@@ -596,13 +690,9 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
 async function initFilesPage() {
@@ -769,6 +859,49 @@ function playSoftTone(type = "send") {
   osc2.start(now + 0.01);
   osc1.stop(now + 0.18);
   osc2.stop(now + 0.18);
+}
+
+function showToast(title, text, type = "ok") {
+  const box = document.getElementById("toastContainer");
+  if (!box) return;
+
+  const el = document.createElement("div");
+  el.className = "toast";
+  if (type === "error") el.style.borderColor = "rgba(255,64,107,0.28)";
+  el.innerHTML = `<strong>${escapeHtml(title)}</strong><p>${escapeHtml(text)}</p>`;
+  box.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function showConfirm(title, text) {
+  const modal = document.getElementById("confirmModal");
+  const titleEl = document.getElementById("confirmTitle");
+  const textEl = document.getElementById("confirmText");
+  const cancelBtn = document.getElementById("confirmCancelBtn");
+  const okBtn = document.getElementById("confirmOkBtn");
+
+  if (!modal || !titleEl || !textEl || !cancelBtn || !okBtn) {
+    return Promise.resolve(false);
+  }
+
+  titleEl.textContent = title;
+  textEl.textContent = text;
+  modal.classList.remove("hidden");
+
+  return new Promise((resolve) => {
+    const close = (value) => {
+      modal.classList.add("hidden");
+      cancelBtn.removeEventListener("click", onCancel);
+      okBtn.removeEventListener("click", onOk);
+      resolve(value);
+    };
+
+    const onCancel = () => close(false);
+    const onOk = () => close(true);
+
+    cancelBtn.addEventListener("click", onCancel, { once: true });
+    okBtn.addEventListener("click", onOk, { once: true });
+  });
 }
 
 function formatTime(dateStr) {
