@@ -16,6 +16,10 @@
   <div class="bg-noise"></div>
   <div class="bg-scanline"></div>
 
+  <div class="floating-presence">
+    <span class="presence-dot offline" id="floatingPartnerDot"></span>
+  </div>
+
   <div class="mobile-shell">
     <header class="mobile-topbar terminal-card">
       <div class="topbar-main">
@@ -30,6 +34,7 @@
           </div>
           <div class="subline-row">
             <span class="subline-item" id="partnerRankLine">Admiral Administrator</span>
+            <span class="subline-item" id="partnerCodeLine">Codename: BLACK ADMIRAL</span>
             <span class="subline-item" id="partnerLastSeenLine">Last seen: --</span>
           </div>
         </div>
@@ -55,17 +60,23 @@
       </div>
     </header>
 
+    <div id="menuOverlay" class="menu-overlay hidden"></div>
+
     <aside id="sideMenu" class="side-menu terminal-card hidden">
-      <div class="card-header">
-        <span class="header-led"></span>
-        <span>SHADOWLINK MENU</span>
+      <div class="side-menu-top">
+        <div class="card-header">
+          <span class="header-led"></span>
+          <span>SHADOWLINK MENU</span>
+        </div>
+        <button id="menuCloseBtn" class="icon-btn menu-close-btn" type="button" title="Close">✕</button>
       </div>
 
       <div class="menu-user-box">
         <div class="avatar-card small" id="myAvatarCard"></div>
         <div>
           <div class="profile-name" id="myName">—</div>
-          <div class="profile-status">local secure node</div>
+          <div class="profile-status" id="myRoleLine">local secure node</div>
+          <div class="profile-status" id="myCodeLine">Codename: --</div>
         </div>
       </div>
 
@@ -80,6 +91,7 @@
         <a href="settings.html" class="menu-link">Settings</a>
       </nav>
 
+      <button id="purgeChatBtn" class="danger-btn full-btn" type="button">Bütün mesajları sil</button>
       <button id="logoutBtn" class="danger-btn full-btn" type="button">Disconnect</button>
     </aside>
 
@@ -96,7 +108,7 @@
       </div>
 
       <div id="editorBanner" class="editor-banner hidden">
-        <div>
+        <div class="editor-banner-content">
           <strong>Mesaj redaktə olunur</strong>
           <p id="editorTextPreview">—</p>
         </div>
