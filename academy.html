@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SHADOWLINK // Academy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="academy">
+  <div class="bg-image"></div>
+  <canvas id="matrixCanvas"></canvas>
+  <div class="bg-grid"></div>
+  <div class="bg-noise"></div>
+  <div class="bg-scanline"></div>
+
+  <div class="page-shell">
+    <header class="page-topbar terminal-card">
+      <div>
+        <p class="system-label">TACTICAL LEARNING GRID</p>
+        <h1>Academy</h1>
+      </div>
+      <a href="index.html" class="mini-btn text-link">← Channel</a>
+    </header>
+
+    <section class="academy-hero terminal-card">
+      <div class="academy-hero-top">
+        <div class="academy-lead-box">
+          <div class="avatar-card academy-main-avatar">
+            <img src="foto/E-hack.png" alt="Ebiss">
+          </div>
+          <div>
+            <div class="profile-name academy-lead-name">Admiral Ebiss</div>
+            <div class="profile-role">Supreme Tactical Director</div>
+            <div class="star-row academy-gold-stars">★★★★★</div>
+            <p class="academy-lead-desc">
+              Mission command authority. Advanced cyber doctrine, covert routing,
+              intrusion logic, defense posture and ranked operator training are
+              managed under Ebiss. All permissions route through command authority.
+            </p>
+          </div>
+        </div>
+
+        <div class="academy-side-stats">
+          <div class="academy-stat">
+            <span>Authority</span>
+            <strong>OMEGA BLACK</strong>
+          </div>
+          <div class="academy-stat">
+            <span>Write Access</span>
+            <strong>RANKED ONLY</strong>
+          </div>
+          <div class="academy-stat">
+            <span>Command Tier</span>
+            <strong>ADMIRAL</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="academy-warning">
+        Only ranked operators can write in this lane. Lower tiers observe, learn,
+        archive and request permission through command structure.
+      </div>
+    </section>
+
+    <section class="academy-layout">
+      <div class="academy-feed terminal-card">
+        <div class="card-header">
+          <span class="header-led"></span>
+          <span>ACADEMY THREAD</span>
+        </div>
+        <div id="academyFeed" class="academy-feed-list"></div>
+      </div>
+
+      <div class="academy-sidebar terminal-card">
+        <div class="card-header">
+          <span class="header-led"></span>
+          <span>RANKED OPERATORS</span>
+        </div>
+        <div id="academyMembers" class="academy-members"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="fake-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
